@@ -14,5 +14,5 @@ pip install timm==0.5.4
 pip install mmcv-full==1.7.1
 pip install mmsegmentation==0.30.0
 
-pip install IPython
-pip install cityscapesscripts
+# pip install IPython
+# pip install cityscapesscripts
