@@ -120,6 +120,5 @@ mmseg/.mim
 *.pth
 
 
-pretrained
-work_dirs
-data
+pretrained/
+nohup.out
