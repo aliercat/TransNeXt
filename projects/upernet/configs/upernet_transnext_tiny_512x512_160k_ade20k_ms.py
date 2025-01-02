@@ -7,7 +7,7 @@ _base_ = [
 # optimizer
 model = dict(
     backbone=dict(
-        pretrained=None,
+        pretrained='pretrained/transnext_tiny_224_1k.pth',
         type='transnext_tiny',
         pretrain_size=224,
         img_size=800, # For better position bias interpolation as the average input size during ms+aug eval is much larger than 512x512
@@ -35,4 +35,4 @@ lr_config = dict(_delete_=True, policy='poly',
                  power=1.0, min_lr=0.0, by_epoch=False)
 
 # By default, models are trained on 8 GPUs with 2 images per GPU
-data=dict(samples_per_gpu=2)
+data=dict(samples_per_gpu=4)

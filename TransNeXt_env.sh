@@ -25,6 +25,7 @@ pip install mmcv-full==1.7.1
 # pip install -U openmim
 # mim install mmcv==1.7.1
 pip install mmsegmentation==0.30.0
-
+# pip uninstall yapf
+pip install yapf==0.40.1
 # pip install IPython
 # pip install cityscapesscripts
