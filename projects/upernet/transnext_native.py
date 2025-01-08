@@ -20,7 +20,7 @@ import math
 from mmseg.models.builder import BACKBONES
 from mmseg.utils import get_root_logger
 from mmcv.runner import load_checkpoint
-
+from mmseg.models.utils.se_layer import SELayer
 
 class DWConv(nn.Module):
     def __init__(self, dim=768):
@@ -34,7 +34,27 @@ class DWConv(nn.Module):
         x = x.flatten(2).transpose(1, 2)
 
         return x
+    
+class MultiScaleDWConv(nn.Module):
+    def __init__(self, dim=768):
+        super(MultiScaleDWConv, self).__init__()
+        self.dwconv1 = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
+        self.dwconv2 = nn.Conv2d(dim, dim, 5, 1, 2, bias=True, groups=dim)
+        # self.dwconv3 = nn.Conv2d(dim, dim, 7, 1, 3, bias=True, groups=dim)
+        self.attn_weights = nn.Parameter(torch.ones(2))
 
+    def forward(self, x, H, W):
+        B, N, C = x.shape
+        x = x.transpose(1, 2).view(B, C, H, W).contiguous()
+        x1 = self.dwconv1(x)
+        x2 = self.dwconv2(x)
+        # x3 = self.dwconv3(x)
+        weights = torch.softmax(self.attn_weights, dim=0)
+        # x = (x1 + x2) / 2
+        x = x1 * weights[0] + x2 * weights[1]
+        x = x.flatten(2).transpose(1, 2)
+
+        return x
 
 class ConvolutionalGLU(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -43,14 +63,21 @@ class ConvolutionalGLU(nn.Module):
         hidden_features = hidden_features or in_features
         hidden_features = int(2 * hidden_features / 3)
         self.fc1 = nn.Linear(in_features, hidden_features * 2)
-        self.dwconv = DWConv(hidden_features)
+        # self.dwconv = DWConv(hidden_features)
+        self.dwconv = MultiScaleDWConv(hidden_features)
         self.act = act_layer()
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
 
+        # self.se = SELayer(hidden_features)
+
     def forward(self, x, H, W):
         x, v = self.fc1(x).chunk(2, dim=-1)
         x = self.act(self.dwconv(x, H, W)) * v
+        B, N, C = x.shape
+        # x = x.permute(0, 2, 1).view(B, C, H, W) # [B, C, H, W]
+        # x = self.se(x) # [B, C, H, W]
+        # x = x.permute(0, 2, 3, 1).contiguous().view(B, N, C)
         x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)

@@ -7,9 +7,11 @@ _base_ = [
 
 crop_size = (512, 512)
 # optimizer
+# find_unused_parameters = True
 model = dict(
     backbone=dict(
         pretrained='pretrained/transnext_tiny_224_1k.pth',
+        # pretrained='pretrained/iter_48k.pth',
         type='transnext_tiny',
         pretrain_size=224,
         img_size=512,
@@ -27,12 +29,28 @@ model = dict(
 )
 
 # optimizer
+# 动态生成 paramwise_cfg
+paramwise_cfg = {
+    'custom_keys': {
+        'query_embedding': {'decay_mult': 0.},
+        'relative_pos_bias_local': {'decay_mult': 0.},
+        'cpb': {'decay_mult': 0.},
+        'temperature': {'decay_mult': 0.},
+        'norm': {'decay_mult': 0.},
+        'head': {'lr_mult': 10.0}, # 新添加的，为了让decoder训练更快
+        'mlp': {'lr_mult': 10.0}
+    }
+}
+# 为每个 block1 和 block2 中的 attn 层设置 lr_mult
+# for i in range(block1_depth):
+#     paramwise_cfg['custom_keys'][f'block1.{i}.attn'] = {'lr_mult': 10.0}
+# for i in range(block2_depth):
+#     paramwise_cfg['custom_keys'][f'block2.{i}.attn'] = {'lr_mult': 10.0}
+
+
 optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.05,
-                 paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
-                                                 'relative_pos_bias_local': dict(decay_mult=0.),
-                                                 'cpb': dict(decay_mult=0.),
-                                                 'temperature': dict(decay_mult=0.),
-                                                 'norm': dict(decay_mult=0.)}))
+                 paramwise_cfg=paramwise_cfg)
+
 lr_config = dict(_delete_=True, policy='poly',
                  warmup='linear',
                  warmup_iters=1500,
