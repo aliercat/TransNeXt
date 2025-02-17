@@ -20,7 +20,7 @@ import math
 from mmseg.models.builder import BACKBONES
 from mmseg.utils import get_root_logger
 from mmcv.runner import load_checkpoint
-
+from adapter_modules import SpatialPriorModule, InteractionBlock
 
 class DWConv(nn.Module):
     def __init__(self, dim=768):
@@ -370,6 +370,14 @@ class TransNeXt(nn.Module):
         self.is_extrapolation = is_extrapolation
         self.pretrain_size = pretrain_size or img_size
 
+        self.spm = SpatialPriorModule(inplanes=64, embed_dim=embed_dims[0])
+        self.interaction_block = nn.ModuleList([
+            InteractionBlock(dim=embed_dims[i], num_heads=num_heads[i], n_points=4, 
+                             norm_layer=norm_layer, with_cp=False)
+            for i in range(num_stages)
+        ])
+        self.level_embed = nn.parameter(torch.zeros(3, embed_dims[0]))
+
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
 
@@ -444,6 +452,12 @@ class TransNeXt(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
+    def _add_level_embed(self, c2, c3, c4):
+        c2 = c2 + self.level_embed[0]
+        c3 = c3 + self.level_embed[1]
+        c4 = c4 + self.level_embed[2]
+        return c2, c3, c4
+    
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
@@ -452,7 +466,13 @@ class TransNeXt(nn.Module):
             patch_embed = getattr(self, f"patch_embed{i + 1}")
             block = getattr(self, f"block{i + 1}")
             norm = getattr(self, f"norm{i + 1}")
+
+            c1, c2, c3, c4 = self.spm(x) # [bs, n, dim]
+            c2, c3, c4 = self._add_level_embed(c2, c3, c4)
+            c = torch.cat([c2, c3, c4], dim=1)
+
             x, H, W = patch_embed(x)
+            bs, n, dim = x.shape
             sr_ratio = self.sr_ratios[i]
             if self.is_extrapolation:
                 relative_pos_index, relative_coords_table = get_relative_position_cpb(query_size=(H, W),
@@ -474,12 +494,41 @@ class TransNeXt(nn.Module):
                 else:
                     seq_length_scale = torch.log(torch.as_tensor((H // sr_ratio) * (W // sr_ratio), device=x.device))
                     padding_mask = None
-            for blk in block:
-                x = blk(x, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
+            
+            # for blk in block:
+            #     x = blk(x, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
+            x, c = self.interaction_block[i](x, c, block, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
 
             x = norm(x)
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
             outs.append(x)
+        
+        # Split & Reshape
+        c2 = c[:, 0:c2.size(1), :]
+        c3 = c[:, c2.size(1):c2.size(1) + c3.size(1), :]
+        c4 = c[:, c2.size(1) + c3.size(1):, :]
+
+        c2 = c2.transpose(1, 2).view(bs, dim, H * 2, W * 2).contiguous()
+        c3 = c3.transpose(1, 2).view(bs, dim, H, W).contiguous()
+        c4 = c4.transpose(1, 2).view(bs, dim, H // 2, W // 2).contiguous()
+        c1 = self.up(c2) + c1
+
+        # if self.add_vit_feature:
+        x1, x2, x3, x4 = outs
+        x1 = F.interpolate(x1, scale_factor=4, mode='bilinear', align_corners=False)
+        x2 = F.interpolate(x2, scale_factor=2, mode='bilinear', align_corners=False)
+        x4 = F.interpolate(x4, scale_factor=0.5, mode='bilinear', align_corners=False)
+        c1, c2, c3, c4 = c1 + x1, c2 + x2, c3 + x3, c4 + x4
+
+        norm1 = getattr(self, f"norm{1}")
+        norm2 = getattr(self, f"norm{2}")
+        norm3 = getattr(self, f"norm{3}")
+        norm4 = getattr(self, f"norm{4}")
+        f1 = norm1(c1)
+        f2 = norm2(c2)
+        f3 = norm3(c3)
+        f4 = norm4(c4)
+        outs = [f1, f2, f3, f4]
 
         return outs
 
