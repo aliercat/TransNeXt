@@ -1,5 +1,5 @@
 _base_ = [
-    '_base_/models/upernet_transnext.py',
+    '_base_/models/seghead_transnext.py',
     '_base_/datasets/ade20k.py',
     '_base_/default_runtime.py',
     '_base_/schedules/schedule_160k.py'
@@ -9,41 +9,29 @@ crop_size = (512, 512)
 # optimizer
 model = dict(
     backbone=dict(
-        pretrained='pretrained/transnext_tiny_224_1k.pth',
+        pretrained=None,
         type='transnext_tiny',
         pretrain_size=224,
         img_size=512,
         is_extrapolation=False,
     ),
     decode_head=dict(
+        type='SegHead',
         in_channels=[72, 144, 288, 576],
-        num_classes=150
-    ),
-    auxiliary_head=dict(
-        in_channels=288,
-        num_classes=150
+        num_classes=150,
+        decoder_params=dict(embed_dim=768),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
     ),
     test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)),
 )
 
-paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
+# optimizer
+optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.05,
+                 paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
                                                  'relative_pos_bias_local': dict(decay_mult=0.),
                                                  'cpb': dict(decay_mult=0.),
                                                  'temperature': dict(decay_mult=0.),
-                                                 'norm': dict(decay_mult=0.)})
-
-# paramwise_cfg['custom_keys']['spm'] = {'lr_mult': 10.0}
-# paramwise_cfg['custom_keys']['interaction_block'] = {'lr_mult': 10.0}
-# paramwise_cfg['custom_keys']['up'] = {'lr_mult': 10.0}
-# for i in range(4):
-#     paramwise_cfg['custom_keys'][f'conv{i+1}'] = {'lr_mult': 10.0}
-
-
-
-# optimizer
-# optimizer = dict(paramwise_cfg=paramwise_cfg)
-optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01,
-                 paramwise_cfg=paramwise_cfg)
+                                                 'norm': dict(decay_mult=0.)}))
 lr_config = dict(_delete_=True, policy='poly',
                  warmup='linear',
                  warmup_iters=1500,

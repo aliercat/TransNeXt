@@ -120,6 +120,8 @@ def train_segmentor(model,
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
 
+    print_lr_for_all_layers(model, optimizer)
+
     if cfg.get('runner') is None:
         cfg.runner = {'type': 'IterBasedRunner', 'max_iters': cfg.total_iters}
         warnings.warn(
@@ -192,3 +194,24 @@ def train_segmentor(model,
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
     runner.run(data_loaders, cfg.workflow)
+
+def print_lr_for_all_layers(model, optimizer):
+    """
+    打印优化器中每一层的学习率。
+    """
+    # 遍历优化器的参数组
+    for param_group in optimizer.param_groups:
+        # param_group 是一个字典，包含 'params', 'lr', 'weight_decay', 'lr_mult' 等
+        lr = param_group['lr']  # 获取当前参数组的学习率
+        print(f"Learning rate for the group with params: {lr}")
+        
+        # 如果你希望打印参数的具体信息，可以遍历每个参数
+        for param in param_group['params']:
+            # 打印参数的 ID 或其它信息（如名称）
+            print(f"  - Param ID: {id(param)}")
+            
+            # 可选：如果模型的参数有名字（例如通过 named_parameters），也可以打印名字
+            for param_name, param_tensor in model.named_parameters():
+                if param_tensor is param:
+                    print(f"    Layer: {param_name}")
+                    break

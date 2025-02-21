@@ -40,6 +40,7 @@ class DWConv(nn.Module):
 
     def forward(self, x, H, W):
         B, N, C = x.shape
+        # print(f'N = {N}, C = {C}, H = {H}, W = {W}, x.shape = ', x.shape)
         n = N // 21
         x1 = x[:, 0:16 * n, :].transpose(1, 2).view(B, C, H * 2, W * 2).contiguous()
         x2 = x[:, 16 * n:20 * n, :].transpose(1, 2).view(B, C, H, W).contiguous()
@@ -57,7 +58,7 @@ class Extractor(nn.Module):
         super().__init__()
         self.query_norm = norm_layer(dim)
         self.feat_norm = norm_layer(dim)
-        # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, n_heads=num_heads,
+        # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
         self.attn = Attention(dim, num_heads=num_heads)
         self.with_cffn = with_cffn
@@ -73,7 +74,6 @@ class Extractor(nn.Module):
 
             attn = self.attn(self.query_norm(query), self.feat_norm(feat))
             query = query + attn
-    
             if self.with_cffn:
                 query = query + self.drop_path(self.ffn(self.ffn_norm(query), H, W))
             return query
@@ -92,7 +92,7 @@ class Injector(nn.Module):
         self.with_cp = with_cp
         self.query_norm = norm_layer(dim)
         self.feat_norm = norm_layer(dim)
-        # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, n_heads=num_heads,
+        # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
         self.attn = Attention(dim, num_heads=num_heads)
         self.gamma = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
@@ -135,14 +135,16 @@ class InteractionBlock(nn.Module):
             self.extra_extractors = None
 
     # def forward(self, x, c, blocks, deform_inputs1, deform_inputs2, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
-    def forward(self, x, c, blocks, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
+    def forward(self, x, c, blocks, H, W, h, w, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
         x = self.injector(query=x, feat=c)
         for idx, blk in enumerate(blocks):
             x = blk(x, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
-        c = self.extractor(query=c,feat=x, H=H, W=W)
+            # print(f'after block_{idx}: {x.shape}, H = {H}')
+        c = self.extractor(query=c,feat=x, H=h, W=w)
+        # print(f'after extractor: {x.shape}')
         if self.extra_extractors is not None:
             for extractor in self.extra_extractors:
-                c = extractor(query=c,feat=x, H=H, W=W)
+                c = extractor(query=c,feat=x, H=h, W=w)
         return x, c
 
 
@@ -188,12 +190,12 @@ class InteractionBlockWithCls(nn.Module):
     
 
 class SpatialPriorModule(nn.Module):
-    def __init__(self, inplanes=64, embed_dim=384, with_cp=False):
+    def __init__(self, in_channels=3, inplanes=64, embed_dim=384, with_cp=False):
         super().__init__()
         self.with_cp = with_cp
 
         self.stem = nn.Sequential(*[
-            nn.Conv2d(3, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.Conv2d(in_channels, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
             nn.SyncBatchNorm(inplanes),
             nn.ReLU(inplace=True),
             nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
@@ -227,6 +229,7 @@ class SpatialPriorModule(nn.Module):
     def forward(self, x):
         
         def _inner_forward(x):
+            # print('x.shape', x.shape)
             c1 = self.stem(x)
             c2 = self.conv2(c1)
             c3 = self.conv3(c2)
