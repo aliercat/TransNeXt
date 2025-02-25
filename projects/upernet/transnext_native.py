@@ -38,7 +38,7 @@ class DWConv(nn.Module):
 class MultiScaleDWConv(nn.Module):
     def __init__(self, dim=768):
         super(MultiScaleDWConv, self).__init__()
-        self.dwconv1 = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
+        self.dwconv = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
         self.dwconv2 = nn.Conv2d(dim, dim, 5, 1, 2, bias=True, groups=dim)
         # self.dwconv3 = nn.Conv2d(dim, dim, 7, 1, 3, bias=True, groups=dim)
         self.attn_weights = nn.Parameter(torch.ones(2))
@@ -46,7 +46,7 @@ class MultiScaleDWConv(nn.Module):
     def forward(self, x, H, W):
         B, N, C = x.shape
         x = x.transpose(1, 2).view(B, C, H, W).contiguous()
-        x1 = self.dwconv1(x)
+        x1 = self.dwconv(x)
         x2 = self.dwconv2(x)
         # x3 = self.dwconv3(x)
         weights = torch.softmax(self.attn_weights, dim=0)
@@ -69,15 +69,15 @@ class ConvolutionalGLU(nn.Module):
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
 
-        # self.se = SELayer(hidden_features)
+        self.se = SELayer(hidden_features)
 
     def forward(self, x, H, W):
         x, v = self.fc1(x).chunk(2, dim=-1)
         x = self.act(self.dwconv(x, H, W)) * v
         B, N, C = x.shape
-        # x = x.permute(0, 2, 1).view(B, C, H, W) # [B, C, H, W]
-        # x = self.se(x) # [B, C, H, W]
-        # x = x.permute(0, 2, 3, 1).contiguous().view(B, N, C)
+        x = x.permute(0, 2, 1).view(B, C, H, W) # [B, C, H, W]
+        x = self.se(x) # [B, C, H, W]
+        x = x.permute(0, 2, 3, 1).contiguous().view(B, N, C)
         x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)

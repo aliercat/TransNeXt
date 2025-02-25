@@ -15,12 +15,12 @@ def load_and_modify_weights(model_path, save_path):
     for key, value in state_dict.items():
         if key.startswith('backbone.'):
             new_key = key[len('backbone.'):]
-        elif key.startswith('decode_head.'):
-            new_key = key[len('decode_head.'):]
-        elif key.startswith('auxiliary_head.'):
-            new_key = key[len('auxiliary_head.'):]
-        else:
-            new_key = key
+        # elif key.startswith('decode_head.'):
+        #     new_key = key[len('decode_head.'):]
+        # elif key.startswith('auxiliary_head.'):
+        #     new_key = key[len('auxiliary_head.'):]
+        # else:
+        #     new_key = key
         new_state_dict[new_key] = value
 
     # Print modified keys
@@ -40,8 +40,8 @@ def print_model(model_path):
         print(key)
 
 if __name__ == "__main__":
-    model_path = 'work_dirs/upernet_transnext_tiny_512x512_160k_ade20k_ss/iter_48000.pth'
-    save_path = 'pretrained/iter_48k.pth'
+    model_path = 'work_dirs/upernet_transnext_tiny_512x512_160k_ade20k_ss/iter_160000.pth'
+    save_path = 'pretrained/iter_160k_cg1.pth'
     load_and_modify_weights(model_path, save_path)
     print_model(save_path)
     # model_path = 'pretrained/transnext_tiny_224_1k.pth'
