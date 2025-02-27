@@ -370,22 +370,22 @@ class TransNeXt(nn.Module):
         self.is_extrapolation = is_extrapolation
         self.pretrain_size = pretrain_size or img_size
 
-        # self.spm = SpatialPriorModule(inplanes=64, embed_dim=embed_dims[0])
-        self.spm = nn.ModuleList([
-            SpatialPriorModule(in_channels=in_chans if i == 0 else embed_dims[i - 1], 
-                               inplanes=64, embed_dim=embed_dims[i])
-            for i in range(num_stages)
-        ])
+        self.spm = SpatialPriorModule(inplanes=in_chans, embed_dims=embed_dims)
+        # self.spm = nn.ModuleList([
+        #     SpatialPriorModule(in_channels=in_chans if i == 0 else embed_dims[i - 1], 
+        #                        inplanes=64, embed_dim=embed_dims[i])
+        #     for i in range(num_stages)
+        # ])
         self.interaction_block = nn.ModuleList([
             InteractionBlock(dim=embed_dims[i], num_heads=num_heads[i],
-                             norm_layer=norm_layer, with_cp=False)
+                             norm_layer=norm_layer, with_cp=False, num_stage=i)
             for i in range(num_stages)
         ])
-        self.up = nn.ModuleList([
-            nn.ConvTranspose2d(embed_dims[i], embed_dims[i], 2, 2) for i in range(4)
-        ])
+        # self.up = nn.ModuleList([
+        #     nn.ConvTranspose2d(embed_dims[i], embed_dims[i], 2, 2) for i in range(4)
+        # ])
         self.level_embeds = nn.ParameterList([
-            nn.Parameter(torch.zeros(3, embed_dims[i])) for i in range(4)
+            nn.Parameter(torch.zeros(embed_dims[i])) for i in range(num_stages)
         ])
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
@@ -412,13 +412,13 @@ class TransNeXt(nn.Module):
                 sr_ratio=sr_ratios[i], is_extrapolation=is_extrapolation)
                 for j in range(depths[i])])
             norm = norm_layer(embed_dims[i])
-            conv = nn.Conv2d(embed_dims[i]*5, embed_dims[i], kernel_size=1)
+            # conv = nn.Conv2d(embed_dims[i]*5, embed_dims[i], kernel_size=1)
             cur += depths[i]
 
             setattr(self, f"patch_embed{i + 1}", patch_embed)
             setattr(self, f"block{i + 1}", block)
             setattr(self, f"norm{i + 1}", norm)
-            setattr(self, f"conv{i + 1}", conv)
+            # setattr(self, f"conv{i + 1}", conv)
 
         # classification head
         # self.head = nn.Linear(embed_dims[3], num_classes) if num_classes > 0 else nn.Identity()
@@ -463,31 +463,39 @@ class TransNeXt(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    def _add_level_embed(self, i, c2, c3, c4):
-        level_embed = self.level_embeds[i]
-        c2 = c2 + level_embed[0]
-        c3 = c3 + level_embed[1]
-        c4 = c4 + level_embed[2]
-        return c2, c3, c4
+    # def _add_level_embed(self, i, c2, c3, c4):
+    #     level_embed = self.level_embeds[i]
+    #     c1 = c1 + level_embed[0]
+    #     c2 = c2 + level_embed[1]
+    #     c3 = c3 + level_embed[2]
+    #     c4 = c4 + level_embed[3]
+    #     return c1, c2, c3, c4
+    def _add_level_embed(self, i, c):
+        c[i] = c[i] + self.level_embeds[i]
+        return c[i]
     
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
-
+        c = self.spm(x) # [bs, n, dim] c = [c1, c2, c3, c4]
+        # print(c[0].shape)
+        # print(c[1].shape)
+        # print(c[2].shape)
+        # print(c[3].shape)
+        # _x = x
         for i in range(self.num_stages):
             patch_embed = getattr(self, f"patch_embed{i + 1}")
             block = getattr(self, f"block{i + 1}")
             norm = getattr(self, f"norm{i + 1}")
-            conv = getattr(self, f'conv{i+1}')
-            # print('x.shape', x.shape)
-            c1, c2, c3, c4 = self.spm[i](x) # [bs, n, dim]
-            # print('c1, c2, c3, c4 shape:', c1.shape, c2.shape, c3.shape, c4.shape)
-            c2, c3, c4 = self._add_level_embed(i, c2, c3, c4)
-            c = torch.cat([c2, c3, c4], dim=1)
-            
+
+            # c = self.spm(_x) # [bs, n, dim] c = [c1, c2, c3, c4]
+            _c = self._add_level_embed(i, c)
+            # print(f'_c.shape:{_c.shape}')
+
             x, H, W = patch_embed(x)
-            # print('input H and W is', H, W)
-            bs, n, dim = x.shape
+
+            # print(f'after patch embed, x.shape:{x.shape}, c[i].shape:{c[i].shape}')
+
             sr_ratio = self.sr_ratios[i]
             if self.is_extrapolation:
                 relative_pos_index, relative_coords_table = get_relative_position_cpb(query_size=(H, W),
@@ -510,40 +518,17 @@ class TransNeXt(nn.Module):
                     seq_length_scale = torch.log(torch.as_tensor((H // sr_ratio) * (W // sr_ratio), device=x.device))
                     padding_mask = None
             
-            if i > 0:
-                h, w = H // 8, W // 8
-            else:
-                h, w = H // 4, W // 4
-            # for blk in block:
-            #     x = blk(x, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
-            x, c = self.interaction_block[i](x, c, block, H, W, h, w, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
-
-            # Split & Reshape
-            # print("H, W, h, w = ", H, W, h, w)
             
-            c2 = c[:, 0:c2.size(1), :]
-            c3 = c[:, c2.size(1):c2.size(1) + c3.size(1), :]
-            c4 = c[:, c2.size(1) + c3.size(1):, :]
+           
+            x, _c = self.interaction_block[i](x, _c, block, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)       
 
-            c2 = c2.transpose(1, 2).view(bs, dim, h * 2, h * 2).contiguous()
-            c3 = c3.transpose(1, 2).view(bs, dim, h, w).contiguous()
-            c4 = c4.transpose(1, 2).view(bs, dim, h // 2, w // 2).contiguous()
-            # print(c1.shape)
-            # print('c1, c2, c3, c4 shape:', c1.shape, c2.shape, c3.shape, c4.shape)
-            c1 = self.up[i](c2) + c1         
-
+            # print(f'after interaction block, x.shape:{x.shape}, _c.shape:{_c.shape}')
+            # x:[B, N, C] _c : [B, N, C]
+            x = x + _c
             x = norm(x)
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-            # x.shape: [B, C, H, W]
-            # c1, c2, c3, c4 shape : [B, C, H, W], [B, C, H/2, W/2], [B, C, H/4, W/4], [B, C, H/8, W/8]
-            c1_up = F.interpolate(c1, size=(H, W), mode='bilinear', align_corners=False)  # shape: [B, C, H, W]
-            c2_up = F.interpolate(c2, size=(H, W), mode='bilinear', align_corners=False)  # shape: [B, C, H, W]
-            c3_up = F.interpolate(c3, size=(H, W), mode='bilinear', align_corners=False)  # shape: [B, C, H, W]
-            c4_up = F.interpolate(c4, size=(H, W), mode='bilinear', align_corners=False)  # shape: [B, C, H, W]
 
-            x = torch.cat((x, c1_up, c2_up, c3_up, c4_up), dim=1)  # shape: [B, C*5, H, W]
-            x = conv(x) # shape: [B, C, H, W]
-            # print('x.shape', x.shape)
+           
             outs.append(x)
 
         return outs

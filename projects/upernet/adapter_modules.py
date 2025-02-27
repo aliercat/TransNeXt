@@ -4,12 +4,15 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
-# from ops.modules import MSDeformAttn
-from attentions import CrossAttention as Attention
+# from attentions import CrossAttention as Attention
+from attentions import VectorizedSparseAttention as Attention
+
 from timm.models.layers import DropPath
 
 _logger = logging.getLogger(__name__)
 
+block_size  = [512, 256, 128, 64]
+window      = [8  , 4  , 4  , 2 ]
 
 class ConvFFN(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None,
@@ -41,26 +44,30 @@ class DWConv(nn.Module):
     def forward(self, x, H, W):
         B, N, C = x.shape
         # print(f'N = {N}, C = {C}, H = {H}, W = {W}, x.shape = ', x.shape)
-        n = N // 21
-        x1 = x[:, 0:16 * n, :].transpose(1, 2).view(B, C, H * 2, W * 2).contiguous()
-        x2 = x[:, 16 * n:20 * n, :].transpose(1, 2).view(B, C, H, W).contiguous()
-        x3 = x[:, 20 * n:, :].transpose(1, 2).view(B, C, H // 2, W // 2).contiguous()
-        x1 = self.dwconv(x1).flatten(2).transpose(1, 2)
-        x2 = self.dwconv(x2).flatten(2).transpose(1, 2)
-        x3 = self.dwconv(x3).flatten(2).transpose(1, 2)
-        x = torch.cat([x1, x2, x3], dim=1)
+        # n = N // 21
+        # x1 = x[:, 0:16 * n, :].transpose(1, 2).view(B, C, H * 2, W * 2).contiguous()
+        # x2 = x[:, 16 * n:20 * n, :].transpose(1, 2).view(B, C, H, W).contiguous()
+        # x3 = x[:, 20 * n:, :].transpose(1, 2).view(B, C, H // 2, W // 2).contiguous()
+        # x1 = self.dwconv(x1).flatten(2).transpose(1, 2)
+        # x2 = self.dwconv(x2).flatten(2).transpose(1, 2)
+        # x3 = self.dwconv(x3).flatten(2).transpose(1, 2)
+        # x = torch.cat([x1, x2, x3], dim=1)
+        x = x.transpose(1, 2).view(B, C, H, W).contiguous()
+        x = self.dwconv(x)
+        x = x.flatten(2).transpose(1, 2)
+
         return x
 
 
 class Extractor(nn.Module):
     def __init__(self, dim, num_heads=6, with_cffn=True, cffn_ratio=0.25, drop=0., drop_path=0.,
-                 norm_layer=partial(nn.LayerNorm, eps=1e-6), with_cp=False):
+                 norm_layer=partial(nn.LayerNorm, eps=1e-6), with_cp=False, num_stage=0):
         super().__init__()
         self.query_norm = norm_layer(dim)
         self.feat_norm = norm_layer(dim)
         # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
-        self.attn = Attention(dim, num_heads=num_heads)
+        self.attn = Attention(dim, block_size[num_stage], window[num_stage])
         self.with_cffn = with_cffn
         self.with_cp = with_cp
         if with_cffn:
@@ -87,14 +94,15 @@ class Extractor(nn.Module):
 
 
 class Injector(nn.Module):
-    def __init__(self, dim, num_heads=6, norm_layer=partial(nn.LayerNorm, eps=1e-6), init_values=0., with_cp=False):
+    def __init__(self, dim, num_heads=6, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+                 init_values=0., with_cp=False, num_stage=0):
         super().__init__()
         self.with_cp = with_cp
         self.query_norm = norm_layer(dim)
         self.feat_norm = norm_layer(dim)
         # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
-        self.attn = Attention(dim, num_heads=num_heads)
+        self.attn = Attention(dim, block_size[num_stage], window[num_stage])
         self.gamma = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
 
     def forward(self, query, feat):
@@ -116,35 +124,35 @@ class Injector(nn.Module):
 class InteractionBlock(nn.Module):
     def __init__(self, dim, num_heads=6, norm_layer=partial(nn.LayerNorm, eps=1e-6),
                  drop=0., drop_path=0., with_cffn=True, cffn_ratio=0.25, init_values=0.,
-                 extra_extractor=False, with_cp=False):
+                 extra_extractor=False, with_cp=False, num_stage=0):
         super().__init__()
 
         self.injector = Injector(dim=dim, num_heads=num_heads, init_values=init_values,
-                                 norm_layer=norm_layer, with_cp=with_cp)
+                                 norm_layer=norm_layer, with_cp=with_cp, num_stage=num_stage)
         self.extractor = Extractor(dim=dim, num_heads=num_heads, norm_layer=norm_layer, 
                                    with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                                   drop_path=drop_path, with_cp=with_cp)
+                                   drop_path=drop_path, with_cp=with_cp, num_stage=num_stage)
         if extra_extractor:
             self.extra_extractors = nn.Sequential(*[
                 Extractor(dim=dim, num_heads=num_heads, norm_layer=norm_layer,
                           with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                          drop_path=drop_path, with_cp=with_cp)
+                          drop_path=drop_path, with_cp=with_cp, num_stage=num_stage)
                 for _ in range(2)
             ])
         else:
             self.extra_extractors = None
 
     # def forward(self, x, c, blocks, deform_inputs1, deform_inputs2, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
-    def forward(self, x, c, blocks, H, W, h, w, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
+    def forward(self, x, c, blocks, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask):
         x = self.injector(query=x, feat=c)
         for idx, blk in enumerate(blocks):
             x = blk(x, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)
             # print(f'after block_{idx}: {x.shape}, H = {H}')
-        c = self.extractor(query=c,feat=x, H=h, W=w)
+        c = self.extractor(query=c,feat=x, H=H, W=W)
         # print(f'after extractor: {x.shape}')
         if self.extra_extractors is not None:
             for extractor in self.extra_extractors:
-                c = extractor(query=c,feat=x, H=h, W=w)
+                c = extractor(query=c,feat=x, H=H, W=W)
         return x, c
 
 
@@ -190,7 +198,7 @@ class InteractionBlockWithCls(nn.Module):
     
 
 class SpatialPriorModule(nn.Module):
-    def __init__(self, in_channels=3, inplanes=64, embed_dim=384, with_cp=False):
+    def __init__(self, in_channels=3, inplanes=64, embed_dims=[384,384,384,384], with_cp=False):
         super().__init__()
         self.with_cp = with_cp
 
@@ -221,10 +229,10 @@ class SpatialPriorModule(nn.Module):
             nn.SyncBatchNorm(4 * inplanes),
             nn.ReLU(inplace=True)
         ])
-        self.fc1 = nn.Conv2d(inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc2 = nn.Conv2d(2 * inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc3 = nn.Conv2d(4 * inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc4 = nn.Conv2d(4 * inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
+        self.fc1 = nn.Conv2d(inplanes, embed_dims[0], kernel_size=1, stride=1, padding=0, bias=True)
+        self.fc2 = nn.Conv2d(2 * inplanes, embed_dims[1], kernel_size=1, stride=1, padding=0, bias=True)
+        self.fc3 = nn.Conv2d(4 * inplanes, embed_dims[2], kernel_size=1, stride=1, padding=0, bias=True)
+        self.fc4 = nn.Conv2d(4 * inplanes, embed_dims[3], kernel_size=1, stride=1, padding=0, bias=True)
 
     def forward(self, x):
         
@@ -238,17 +246,61 @@ class SpatialPriorModule(nn.Module):
             c2 = self.fc2(c2)
             c3 = self.fc3(c3)
             c4 = self.fc4(c4)
-    
+
+            # print(c1.shape)
+            # print(c2.shape)
+            # print(c3.shape)
+            # print(c4.shape)
+
             bs, dim, _, _ = c1.shape
             # c1 = c1.view(bs, dim, -1).transpose(1, 2)  # 4s
-            c2 = c2.view(bs, dim, -1).transpose(1, 2)  # 8s
-            c3 = c3.view(bs, dim, -1).transpose(1, 2)  # 16s
-            c4 = c4.view(bs, dim, -1).transpose(1, 2)  # 32s
+            # c2 = c2.view(bs, dim, -1).transpose(1, 2)  # 8s
+            # c3 = c3.view(bs, dim, -1).transpose(1, 2)  # 16s
+            # c4 = c4.view(bs, dim, -1).transpose(1, 2)  # 32s
+            c1 = c1.flatten(2).transpose(1, 2)
+            c2 = c2.flatten(2).transpose(1, 2)
+            c3 = c3.flatten(2).transpose(1, 2)
+            c4 = c4.flatten(2).transpose(1, 2)
     
-            return c1, c2, c3, c4
+            return [c1, c2, c3, c4]
         
         if self.with_cp and x.requires_grad:
             outs = cp.checkpoint(_inner_forward, x)
         else:
             outs = _inner_forward(x)
         return outs
+
+# class SpatialPriorModule(nn.Module):
+#     def __init__(self, in_channels=3, inplanes=64, embed_dim=384, with_cp=False):
+#         super().__init__()
+#         self.with_cp = with_cp
+
+#         # 单分支设计：仅保留stem + 一个下采样层
+#         self.stem = nn.Sequential(
+#             nn.Conv2d(in_channels, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+#             nn.SyncBatchNorm(inplanes),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.SyncBatchNorm(inplanes),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)  # 输出尺寸为原图1/4
+#         )
+        
+#         # 调整通道数至embed_dim
+#         self.fc = nn.Conv2d(inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
+
+#     def forward(self, x):
+#         def _inner_forward(x):
+#             # 单一路径前向
+#             c = self.stem(x)         # [B, inplanes, H/4, W/4]
+#             c = self.fc(c)           # [B, embed_dim, H/4, W/4]
+            
+#             # 展平为序列格式 [B, (H/4*W/4), embed_dim]
+#             bs, dim, h, w = c.shape
+#             c = c.view(bs, dim, -1).transpose(1, 2)
+#             return c  # 仅返回单一特征
+
+#         if self.with_cp and x.requires_grad:
+#             return cp.checkpoint(_inner_forward, x)
+#         else:
+#             return _inner_forward(x)

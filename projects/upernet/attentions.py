@@ -1,10 +1,11 @@
-import torch
+import torch, einops
 from torch import nn
 from torch.nn import functional as F
 from mmcv.cnn import ConvModule
 from timm.models.layers import DropPath, trunc_normal_
 
 import math
+import numpy as np
 
 
 class Attention(nn.Module):
@@ -132,89 +133,65 @@ class CrossAttention(nn.Module):
         attn_scores = torch.matmul(queries, keys.transpose(-2, -1))  # (N, num_heads, Lq, Lin)
         attn_scores = attn_scores / (self.head_dim ** 0.5)  # Scale by sqrt(head_dim)
 
-        # Apply padding mask if present (attn_scores should be -inf where padding is)
         if input_padding_mask is not None:
             attn_scores = attn_scores.masked_fill(input_padding_mask.unsqueeze(1).unsqueeze(2), float('-inf'))
 
-        # Softmax over the last dimension (key sequence length) to get attention weights
         attn_weights = torch.softmax(attn_scores, dim=-1)  # (N, num_heads, Lq, Lin)
-
-        # Weighted sum of values
         attn_output = torch.matmul(attn_weights, values)  # (N, num_heads, Lq, head_dim)
-
-        # Reshape back to (N, Lq, dim)
         attn_output = attn_output.transpose(1, 2).contiguous().view(N, Lq, self.dim)  # (N, Lq, dim)
-
-        # Final output projection
         output = self.output_proj(attn_output)  # (N, Lq, dim)
 
         return output
 
-    
 
-class SparseAttention(nn.Module):
-    def __init__(self, dim=256, num_heads=8, sparsity_factor=0.1):
-        """
-        Sparse Attention Module
-        :param dim: hidden dimension  
-        :param num_heads: number of attention heads
-        :param sparsity_factor: proportion of keys to attend to
-        """
+from einops import rearrange
+
+class VectorizedSparseAttention(nn.Module):
+    def __init__(self, dim=72, block_size=512, window=2):
         super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError('dim must be divisible by num_heads, but got {} and {}'.format(dim, num_heads))
-        
         self.dim = dim
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.sparsity_factor = sparsity_factor
-
-        self.query_proj = nn.Linear(dim, dim)  # Projection for query
-        self.key_proj = nn.Linear(dim, dim)    # Projection for keys (and values)
-        self.output_proj = nn.Linear(dim, dim)  # Output projection
-
-    def forward(self, query, input_flatten, input_padding_mask=None):
-        """
-        :param query: (N, Length_{query}, dim)
-        :param input_flatten: (N, Len_in, dim)
-        :param input_padding_mask: (N, Len_in), True for padding elements, False for non-padding elements 
+        self.block_size = block_size
+        self.window = window
         
-        :return: output: (N, Length_{query}, dim)
-        """
-        N, Len_q, _ = query.shape
-        N, Len_in, _ = input_flatten.shape
+        # 修改投影层：输出3*dim用于分割q/k/v
+        self.q_proj = nn.Linear(dim, dim)
+        self.kv_proj = nn.Linear(dim, 2*dim)
+        self.out_proj = nn.Linear(dim, dim)
+
+    def forward(self, query, key_value):
+        B, Lq, C = query.shape
+        _, Lk, _ = key_value.shape
         
-        # Linear projections
-        Q = self.query_proj(query)  # (N, Len_q, dim)
-        K = self.key_proj(input_flatten)  # (N, Len_in, dim)
+        # 动态填充保证可分块
+        def pad_to_block(x, block_size):
+            pad_len = (block_size - (x.size(1) % block_size)) % block_size
+            return torch.nn.functional.pad(x, (0,0,0,pad_len)), pad_len
         
-        # Reshape for multi-head attention
-        Q = Q.view(N, Len_q, self.num_heads, self.head_dim).transpose(1, 2)  # (N, num_heads, Len_q, head_dim)
-        K = K.view(N, Len_in, self.num_heads, self.head_dim).transpose(1, 2)  # (N, num_heads, Len_in, head_dim)
-
-        # Compute attention scores
-        attn_scores = torch.einsum('nhqd,nhkd->nhqk', Q, K)  # (N, num_heads, Len_q, Len_in)
+        # 对输入进行填充
+        query_padded, q_pad = pad_to_block(query, self.block_size)
+        key_padded, k_pad = pad_to_block(key_value, self.block_size)
         
-        # Apply padding mask
-        if input_padding_mask is not None:
-            attn_scores = attn_scores.masked_fill(input_padding_mask.unsqueeze(1).unsqueeze(2), float('-inf'))
-
-        # Apply sparsity
-        num_keys_to_select = int(self.sparsity_factor * Len_in)
-        topk_scores, topk_indices = torch.topk(attn_scores, num_keys_to_select, dim=-1)
-
-        # Create a sparse attention matrix
-        sparse_attn_weights = F.softmax(topk_scores, dim=-1)
-        sparse_attn_weights = sparse_attn_weights / sparse_attn_weights.sum(dim=-1, keepdim=True)  # Normalize
-
-        # Gather values based on top-k indices
-        V = input_flatten.unsqueeze(1).repeat(1, self.num_heads, 1, 1)  # (N, num_heads, Len_in, dim) 
-        selected_V = torch.gather(V, 2, topk_indices.unsqueeze(-1).expand(-1, -1, -1, self.dim))  # (N, num_heads, Len_q, dim)
-
-        # Compute output
-        output = torch.einsum('nhql,nhld->nhqd', sparse_attn_weights, selected_V)  # (N, num_heads, Len_q, dim)
-
-        output = output.transpose(1, 2).contiguous().view(N, Len_q, self.dim)  # (N, Len_q, dim)
-        output = self.output_proj(output)  # (N, Len_q, dim)
-
-        return output
+        # 关键修正：正确分割q/k/v
+        q = self.q_proj(query_padded)  # [B, L_padded, 3*C]
+        k, v = self.kv_proj(key_padded).chunk(2, dim=-1)        
+        # 分块重组
+        q_blocks = rearrange(q, 'b (nq bsz) c -> b nq bsz c', bsz=self.block_size)  # [B, nq, bsz, C]
+        k_blocks = rearrange(k, 'b (nk bsz) c -> b nk bsz c', bsz=self.block_size)
+        v_blocks = rearrange(v, 'b (nk bsz) c -> b nk bsz c', bsz=self.block_size)
+        
+        # 生成块掩码
+        num_q = q_blocks.size(1)
+        num_k = k_blocks.size(1)
+        block_indices = torch.arange(num_q, device=q.device)[:, None]
+        allowed = (block_indices - torch.arange(num_k, device=q.device)).abs() <= self.window
+        
+        # 向量化注意力计算
+        attn_scores = torch.einsum('bqsc,bkdc->bqksd', q_blocks, k_blocks) / (C**0.5)
+        attn_scores = attn_scores.masked_fill(~allowed.unsqueeze(-1).unsqueeze(-1), -1e9)
+        attn_weights = torch.softmax(attn_scores, dim=3)
+        
+        # 聚合结果
+        output = torch.einsum('bqksd,bkdc->bqsc', attn_weights, v_blocks)
+        output = rearrange(output, 'b q s c -> b (q s) c')[:, :Lq]  # [B, Lq, C]
+        
+        return self.out_proj(output)  # 输入输出维度均为C

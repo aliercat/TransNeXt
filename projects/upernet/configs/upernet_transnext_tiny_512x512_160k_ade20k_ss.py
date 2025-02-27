@@ -27,13 +27,18 @@ model = dict(
 )
 
 paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
-                                                 'relative_pos_bias_local': dict(decay_mult=0.),
-                                                 'cpb': dict(decay_mult=0.),
-                                                 'temperature': dict(decay_mult=0.),
-                                                 'norm': dict(decay_mult=0.)})
+                                'relative_pos_bias_local': dict(decay_mult=0.),
+                                'cpb': dict(decay_mult=0.),
+                                'temperature': dict(decay_mult=0.),
+                                'norm': dict(decay_mult=0.),
+                                # 新增模块配置
+                                'spm': dict(decay_mult=0.5, lr_mult=10.0),      # SpatialPriorModule
+                                'interaction_block': dict(decay_mult=0.5, lr_mult=10.0),
+                                'level_embeds': dict(decay_mult=0.0, lr_mult=2)  # 位置编码参数
+                                })
 
-# paramwise_cfg['custom_keys']['spm'] = {'lr_mult': 10.0}
-# paramwise_cfg['custom_keys']['interaction_block'] = {'lr_mult': 10.0}
+# paramwise_cfg['custom_keys']['spm'] = {'lr_mult': 2.0}
+# paramwise_cfg['custom_keys']['interaction_block'] = {'lr_mult': 2.0}
 # paramwise_cfg['custom_keys']['up'] = {'lr_mult': 10.0}
 # for i in range(4):
 #     paramwise_cfg['custom_keys'][f'conv{i+1}'] = {'lr_mult': 10.0}
@@ -42,7 +47,7 @@ paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
 
 # optimizer
 # optimizer = dict(paramwise_cfg=paramwise_cfg)
-optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01,
+optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.05,
                  paramwise_cfg=paramwise_cfg)
 lr_config = dict(_delete_=True, policy='poly',
                  warmup='linear',
