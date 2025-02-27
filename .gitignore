@@ -123,3 +123,5 @@ mmseg/.mim
 pretrained
 work_dirs
 data
+
+nohup.out
