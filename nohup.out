@@ -1,0 +1,522 @@
+/home/jzy/anaconda3/envs/trans/lib/python3.8/site-packages/mmcv/__init__.py:20: UserWarning: On January 1, 2023, MMCV will release v2.0.0, in which it will remove components related to the training process and add a data transformation module. In addition, it will rename the package names mmcv to mmcv-lite and mmcv-full to mmcv. See https://github.com/open-mmlab/mmcv/blob/master/docs/en/compatibility.md for more details.
+  warnings.warn(
+swattention package not found, loading PyTorch native version of TransNeXt
+2025-03-03 21:12:48,343 - mmseg - INFO - Environment info:
+------------------------------------------------------------
+sys.platform: linux
+Python: 3.8.20 (default, Oct  3 2024, 15:24:27) [GCC 11.2.0]
+CUDA available: True
+GPU 0: NVIDIA GeForce RTX 3090
+CUDA_HOME: /usr
+NVCC: Cuda compilation tools, release 12.0, V12.0.140
+GCC: gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+PyTorch: 2.0.0+cu118
+PyTorch compiling details: PyTorch built with:
+  - GCC 9.3
+  - C++ Version: 201703
+  - Intel(R) oneAPI Math Kernel Library Version 2022.2-Product Build 20220804 for Intel(R) 64 architecture applications
+  - Intel(R) MKL-DNN v2.7.3 (Git Hash 6dbeffbae1f23cbbeae17adb7b5b13f1f37c080e)
+  - OpenMP 201511 (a.k.a. OpenMP 4.5)
+  - LAPACK is enabled (usually provided by MKL)
+  - NNPACK is enabled
+  - CPU capability usage: AVX2
+  - CUDA Runtime 11.8
+  - NVCC architecture flags: -gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_70,code=sm_70;-gencode;arch=compute_75,code=sm_75;-gencode;arch=compute_80,code=sm_80;-gencode;arch=compute_86,code=sm_86;-gencode;arch=compute_90,code=sm_90
+  - CuDNN 8.7
+  - Magma 2.6.1
+  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CUDA_VERSION=11.8, CUDNN_VERSION=8.7.0, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -Wno-deprecated -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOROCTRACER -DUSE_FBGEMM -DUSE_QNNPACK -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wunused-local-typedefs -Wno-unused-parameter -Wno-unused-function -Wno-unused-result -Wno-strict-overflow -Wno-strict-aliasing -Wno-error=deprecated-declarations -Wno-stringop-overflow -Wno-psabi -Wno-error=pedantic -Wno-error=redundant-decls -Wno-error=old-style-cast -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Werror=cast-function-type -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, PERF_WITH_AVX512=1, TORCH_DISABLE_GPU_ASSERTS=ON, TORCH_VERSION=2.0.0, USE_CUDA=ON, USE_CUDNN=ON, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=1, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, 
+
+TorchVision: 0.15.1+cu118
+OpenCV: 4.11.0
+MMCV: 1.7.1
+MMCV Compiler: GCC 13.3
+MMCV CUDA Compiler: 12.0
+MMSegmentation: 0.30.0+2078a3d
+------------------------------------------------------------
+
+2025-03-03 21:12:48,343 - mmseg - INFO - Distributed training: True
+2025-03-03 21:12:48,459 - mmseg - INFO - Config:
+norm_cfg = dict(type='SyncBN', requires_grad=True)
+model = dict(
+    type='EncoderDecoder',
+    pretrained=None,
+    decode_head=dict(
+        type='MoEHead',
+        in_channels=[72, 144, 288, 576],
+        in_index=[0, 1, 2, 3],
+        channels=128,
+        dropout_ratio=0.1,
+        num_classes=150,
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        align_corners=False,
+        decoder_params=dict(embed_dim=768),
+        loss_decode=dict(
+            type='CrossEntropyLoss',
+            use_sigmoid=False,
+            loss_weight=1.0,
+            avg_non_ignore=True)),
+    train_cfg=dict(),
+    test_cfg=dict(mode='slide', crop_size=(512, 512), stride=(341, 341)),
+    backbone=dict(
+        pretrained='pretrained/transnext_tiny_224_1k.pth',
+        type='transnext_tiny',
+        pretrain_size=224,
+        img_size=512,
+        is_extrapolation=False))
+dataset_type = 'ADE20KDataset'
+data_root = 'data/ade/ADEChallengeData2016'
+img_norm_cfg = dict(
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+crop_size = (512, 512)
+train_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations', reduce_zero_label=True),
+    dict(type='Resize', img_scale=(2048, 512), ratio_range=(0.5, 2.0)),
+    dict(type='RandomCrop', crop_size=(512, 512), cat_max_ratio=0.75),
+    dict(type='RandomFlip', prob=0.5),
+    dict(type='PhotoMetricDistortion'),
+    dict(
+        type='Normalize',
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        to_rgb=True),
+    dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+    dict(type='DefaultFormatBundle'),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+]
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(
+        type='MultiScaleFlipAug',
+        img_scale=(2048, 512),
+        flip=False,
+        transforms=[
+            dict(type='Resize', keep_ratio=True),
+            dict(type='RandomFlip'),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='ImageToTensor', keys=['img']),
+            dict(type='Collect', keys=['img'])
+        ])
+]
+data = dict(
+    samples_per_gpu=4,
+    workers_per_gpu=4,
+    train=dict(
+        type='ADE20KDataset',
+        data_root='data/ade/ADEChallengeData2016',
+        img_dir='images/training',
+        ann_dir='annotations/training',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(type='LoadAnnotations', reduce_zero_label=True),
+            dict(type='Resize', img_scale=(2048, 512), ratio_range=(0.5, 2.0)),
+            dict(type='RandomCrop', crop_size=(512, 512), cat_max_ratio=0.75),
+            dict(type='RandomFlip', prob=0.5),
+            dict(type='PhotoMetricDistortion'),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+            dict(type='DefaultFormatBundle'),
+            dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+        ]),
+    val=dict(
+        type='ADE20KDataset',
+        data_root='data/ade/ADEChallengeData2016',
+        img_dir='images/validation',
+        ann_dir='annotations/validation',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(2048, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]),
+    test=dict(
+        type='ADE20KDataset',
+        data_root='data/ade/ADEChallengeData2016',
+        img_dir='images/validation',
+        ann_dir='annotations/validation',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(2048, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]))
+log_config = dict(
+    interval=50, hooks=[dict(type='TextLoggerHook', by_epoch=False)])
+dist_params = dict(backend='nccl')
+log_level = 'INFO'
+load_from = None
+resume_from = None
+workflow = [('train', 1)]
+cudnn_benchmark = True
+optimizer = dict(
+    type='AdamW',
+    lr=3e-05,
+    betas=(0.9, 0.999),
+    weight_decay=0.05,
+    paramwise_cfg=dict(
+        custom_keys=dict(
+            query_embedding=dict(decay_mult=0.0),
+            relative_pos_bias_local=dict(decay_mult=0.0),
+            cpb=dict(decay_mult=0.0),
+            temperature=dict(decay_mult=0.0),
+            norm=dict(decay_mult=0.0),
+            head=dict(lr_mult=10.0))))
+optimizer_config = dict()
+lr_config = dict(
+    policy='poly',
+    warmup='linear',
+    warmup_iters=1500,
+    warmup_ratio=1e-06,
+    power=1.0,
+    min_lr=0.0,
+    by_epoch=False)
+runner = dict(type='IterBasedRunner', max_iters=160000)
+checkpoint_config = dict(by_epoch=False, interval=16000)
+evaluation = dict(interval=16000, metric='mIoU')
+work_dir = './work_dirs/moenet_transnext_tiny_512x512_160k_ade20k_ss'
+gpu_ids = range(0, 1)
+device = 'cuda'
+
+/home/jzy/anaconda3/envs/trans/lib/python3.8/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3483.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+2025-03-03 21:12:48,870 - mmseg - INFO - load checkpoint from local path: pretrained/transnext_tiny_224_1k.pth
+2025-03-03 21:12:48,935 - mmseg - WARNING - The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.weight, head.bias
+
+2025-03-03 21:12:51,746 - mmseg - INFO - EncoderDecoder(
+  (backbone): transnext_tiny(
+    (patch_embed1): OverlapPatchEmbed(
+      (proj): Conv2d(3, 72, kernel_size=(7, 7), stride=(4, 4), padding=(3, 3))
+      (norm): LayerNorm((72,), eps=1e-05, elementwise_affine=True)
+    )
+    (block1): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((72,), eps=1e-06, elementwise_affine=True)
+        (attn): AggregatedAttention(
+          (unfold): Unfold(kernel_size=3, dilation=1, padding=1, stride=1)
+          (q): Linear(in_features=72, out_features=72, bias=True)
+          (kv): Linear(in_features=72, out_features=144, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=72, out_features=72, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (sr): Conv2d(72, 72, kernel_size=(1, 1), stride=(1, 1))
+          (norm): LayerNorm((72,), eps=1e-05, elementwise_affine=True)
+          (act): GELU(approximate='none')
+          (cpb_fc1): Linear(in_features=2, out_features=512, bias=True)
+          (cpb_act): ReLU(inplace=True)
+          (cpb_fc2): Linear(in_features=512, out_features=3, bias=True)
+        )
+        (norm2): LayerNorm((72,), eps=1e-06, elementwise_affine=True)
+        (mlp): ConvolutionalGLU(
+          (fc1): Linear(in_features=72, out_features=768, bias=True)
+          (dwconv): DWConv(
+            (dwconv): Conv2d(384, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=384)
+          )
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=384, out_features=72, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+        (drop_path): Identity()
+      )
+      (1): Block(
+        (norm1): LayerNorm((72,), eps=1e-06, elementwise_affine=True)
+        (attn): AggregatedAttention(
+          (unfold): Unfold(kernel_size=3, dilation=1, padding=1, stride=1)
+          (q): Linear(in_features=72, out_features=72, bias=True)
+          (kv): Linear(in_features=72, out_features=144, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=72, out_features=72, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (sr): Conv2d(72, 72, kernel_size=(1, 1), stride=(1, 1))
+          (norm): LayerNorm((72,), eps=1e-05, elementwise_affine=True)
+          (act): GELU(approximate='none')
+          (cpb_fc1): Linear(in_features=2, out_features=512, bias=True)
+          (cpb_act): ReLU(inplace=True)
+          (cpb_fc2): Linear(in_features=512, out_features=3, bias=True)
+        )
+        (norm2): LayerNorm((72,), eps=1e-06, elementwise_affine=True)
+        (mlp): ConvolutionalGLU(
+          (fc1): Linear(in_features=72, out_features=768, bias=True)
+          (dwconv): DWConv(
+            (dwconv): Conv2d(384, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=384)
+          )
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=384, out_features=72, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+        (drop_path): DropPath()
+      )
+    )
+    (norm1): LayerNorm((72,), eps=1e-06, elementwise_affine=True)
+    (patch_embed2): OverlapPatchEmbed(
+      (proj): Conv2d(72, 144, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+      (norm): LayerNorm((144,), eps=1e-05, elementwise_affine=True)
+    )
+    (block2): ModuleList(
+      (0-1): 2 x Block(
+        (norm1): LayerNorm((144,), eps=1e-06, elementwise_affine=True)
+        (attn): AggregatedAttention(
+          (unfold): Unfold(kernel_size=3, dilation=1, padding=1, stride=1)
+          (q): Linear(in_features=144, out_features=144, bias=True)
+          (kv): Linear(in_features=144, out_features=288, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=144, out_features=144, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (sr): Conv2d(144, 144, kernel_size=(1, 1), stride=(1, 1))
+          (norm): LayerNorm((144,), eps=1e-05, elementwise_affine=True)
+          (act): GELU(approximate='none')
+          (cpb_fc1): Linear(in_features=2, out_features=512, bias=True)
+          (cpb_act): ReLU(inplace=True)
+          (cpb_fc2): Linear(in_features=512, out_features=6, bias=True)
+        )
+        (norm2): LayerNorm((144,), eps=1e-06, elementwise_affine=True)
+        (mlp): ConvolutionalGLU(
+          (fc1): Linear(in_features=144, out_features=1536, bias=True)
+          (dwconv): DWConv(
+            (dwconv): Conv2d(768, 768, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=768)
+          )
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=768, out_features=144, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+        (drop_path): DropPath()
+      )
+    )
+    (norm2): LayerNorm((144,), eps=1e-06, elementwise_affine=True)
+    (patch_embed3): OverlapPatchEmbed(
+      (proj): Conv2d(144, 288, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+      (norm): LayerNorm((288,), eps=1e-05, elementwise_affine=True)
+    )
+    (block3): ModuleList(
+      (0-14): 15 x Block(
+        (norm1): LayerNorm((288,), eps=1e-06, elementwise_affine=True)
+        (attn): AggregatedAttention(
+          (unfold): Unfold(kernel_size=3, dilation=1, padding=1, stride=1)
+          (q): Linear(in_features=288, out_features=288, bias=True)
+          (kv): Linear(in_features=288, out_features=576, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=288, out_features=288, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (sr): Conv2d(288, 288, kernel_size=(1, 1), stride=(1, 1))
+          (norm): LayerNorm((288,), eps=1e-05, elementwise_affine=True)
+          (act): GELU(approximate='none')
+          (cpb_fc1): Linear(in_features=2, out_features=512, bias=True)
+          (cpb_act): ReLU(inplace=True)
+          (cpb_fc2): Linear(in_features=512, out_features=12, bias=True)
+        )
+        (norm2): LayerNorm((288,), eps=1e-06, elementwise_affine=True)
+        (mlp): ConvolutionalGLU(
+          (fc1): Linear(in_features=288, out_features=1536, bias=True)
+          (dwconv): DWConv(
+            (dwconv): Conv2d(768, 768, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=768)
+          )
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=768, out_features=288, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+        (drop_path): DropPath()
+      )
+    )
+    (norm3): LayerNorm((288,), eps=1e-06, elementwise_affine=True)
+    (patch_embed4): OverlapPatchEmbed(
+      (proj): Conv2d(288, 576, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+      (norm): LayerNorm((576,), eps=1e-05, elementwise_affine=True)
+    )
+    (block4): ModuleList(
+      (0-1): 2 x Block(
+        (norm1): LayerNorm((576,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=576, out_features=1728, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=576, out_features=576, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (cpb_fc1): Linear(in_features=2, out_features=512, bias=True)
+          (cpb_act): ReLU(inplace=True)
+          (cpb_fc2): Linear(in_features=512, out_features=24, bias=True)
+        )
+        (norm2): LayerNorm((576,), eps=1e-06, elementwise_affine=True)
+        (mlp): ConvolutionalGLU(
+          (fc1): Linear(in_features=576, out_features=3072, bias=True)
+          (dwconv): DWConv(
+            (dwconv): Conv2d(1536, 1536, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=1536)
+          )
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=1536, out_features=576, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+        (drop_path): DropPath()
+      )
+    )
+    (norm4): LayerNorm((576,), eps=1e-06, elementwise_affine=True)
+  )
+  (decode_head): MoEHead(
+    input_transform=multiple_select, ignore_index=255, align_corners=False
+    (loss_decode): CrossEntropyLoss(avg_non_ignore=True)
+    (conv_seg): Conv2d(128, 150, kernel_size=(1, 1), stride=(1, 1))
+    (dropout): Dropout2d(p=0.1, inplace=False)
+    (ffn_layers): ModuleList(
+      (0): SwitchMoE(
+        (experts): ModuleList(
+          (0-1): 2 x MixFFN(
+            (fc1): Linear(in_features=72, out_features=288, bias=True)
+            (dwconv): DWConv(
+              (dwconv): Conv2d(288, 288, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=288)
+            )
+            (act): GELU(approximate='none')
+            (fc2): Linear(in_features=288, out_features=768, bias=True)
+            (drop): Dropout(p=0.0, inplace=False)
+          )
+        )
+        (gate): SwitchGate(
+          (w_gate): Linear(in_features=72, out_features=2, bias=True)
+        )
+      )
+      (1): SwitchMoE(
+        (experts): ModuleList(
+          (0-1): 2 x MixFFN(
+            (fc1): Linear(in_features=144, out_features=576, bias=True)
+            (dwconv): DWConv(
+              (dwconv): Conv2d(576, 576, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=576)
+            )
+            (act): GELU(approximate='none')
+            (fc2): Linear(in_features=576, out_features=768, bias=True)
+            (drop): Dropout(p=0.0, inplace=False)
+          )
+        )
+        (gate): SwitchGate(
+          (w_gate): Linear(in_features=144, out_features=2, bias=True)
+        )
+      )
+      (2): SwitchMoE(
+        (experts): ModuleList(
+          (0-1): 2 x MixFFN(
+            (fc1): Linear(in_features=288, out_features=1152, bias=True)
+            (dwconv): DWConv(
+              (dwconv): Conv2d(1152, 1152, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=1152)
+            )
+            (act): GELU(approximate='none')
+            (fc2): Linear(in_features=1152, out_features=768, bias=True)
+            (drop): Dropout(p=0.0, inplace=False)
+          )
+        )
+        (gate): SwitchGate(
+          (w_gate): Linear(in_features=288, out_features=2, bias=True)
+        )
+      )
+      (3): SwitchMoE(
+        (experts): ModuleList(
+          (0-1): 2 x MixFFN(
+            (fc1): Linear(in_features=576, out_features=2304, bias=True)
+            (dwconv): DWConv(
+              (dwconv): Conv2d(2304, 2304, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=2304)
+            )
+            (act): GELU(approximate='none')
+            (fc2): Linear(in_features=2304, out_features=768, bias=True)
+            (drop): Dropout(p=0.0, inplace=False)
+          )
+        )
+        (gate): SwitchGate(
+          (w_gate): Linear(in_features=576, out_features=2, bias=True)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+    (conv): ModuleList(
+      (0): Conv2d(72, 768, kernel_size=(1, 1), stride=(1, 1))
+      (1): Conv2d(144, 768, kernel_size=(1, 1), stride=(1, 1))
+      (2): Conv2d(288, 768, kernel_size=(1, 1), stride=(1, 1))
+      (3): Conv2d(576, 768, kernel_size=(1, 1), stride=(1, 1))
+    )
+    (linear_fuse): ConvModule(
+      (conv): Conv2d(3072, 768, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): SyncBatchNorm(768, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (activate): ReLU(inplace=True)
+    )
+    (linear_pred): Conv2d(768, 150, kernel_size=(1, 1), stride=(1, 1))
+  )
+  init_cfg={'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+)
+2025-03-03 21:12:51,866 - mmseg - INFO - Loaded 20210 images
+2025-03-03 21:12:52,212 - mmseg - INFO - Loaded 2000 images
+2025-03-03 21:12:52,212 - mmseg - INFO - Start running, host: jzy@zcf-641, work_dir: /home/jzy/TransNeXt/work_dirs/moenet_transnext_tiny_512x512_160k_ade20k_ss
+2025-03-03 21:12:52,212 - mmseg - INFO - Hooks will be executed in the following order:
+before_run:
+(VERY_HIGH   ) PolyLrUpdaterHook                  
+(NORMAL      ) CheckpointHook                     
+(LOW         ) DistEvalHook                       
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+before_train_epoch:
+(VERY_HIGH   ) PolyLrUpdaterHook                  
+(LOW         ) IterTimerHook                      
+(LOW         ) DistEvalHook                       
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+before_train_iter:
+(VERY_HIGH   ) PolyLrUpdaterHook                  
+(LOW         ) IterTimerHook                      
+(LOW         ) DistEvalHook                       
+ -------------------- 
+after_train_iter:
+(ABOVE_NORMAL) OptimizerHook                      
+(NORMAL      ) CheckpointHook                     
+(LOW         ) IterTimerHook                      
+(LOW         ) DistEvalHook                       
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+after_train_epoch:
+(NORMAL      ) CheckpointHook                     
+(LOW         ) DistEvalHook                       
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+before_val_epoch:
+(LOW         ) IterTimerHook                      
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+before_val_iter:
+(LOW         ) IterTimerHook                      
+ -------------------- 
+after_val_iter:
+(LOW         ) IterTimerHook                      
+ -------------------- 
+after_val_epoch:
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+after_run:
+(VERY_LOW    ) TextLoggerHook                     
+ -------------------- 
+2025-03-03 21:12:52,212 - mmseg - INFO - workflow: [('train', 1)], max: 160000 iters
+2025-03-03 21:12:52,213 - mmseg - INFO - Checkpoints will be saved to /home/jzy/TransNeXt/work_dirs/moenet_transnext_tiny_512x512_160k_ade20k_ss by HardDiskBackend.

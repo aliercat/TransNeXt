@@ -62,9 +62,14 @@ def get_relative_position_cpb(query_size, key_size, pretrain_size=None,
                               device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
     pretrain_size = pretrain_size or query_size
     axis_qh = torch.arange(query_size[0], dtype=torch.float32, device=device)
-    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)
+    # axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)
+    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0).unsqueeze(0),
+                                     key_size[0]).squeeze(0).squeeze(0)
+
     axis_qw = torch.arange(query_size[1], dtype=torch.float32, device=device)
-    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)
+    # axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)
+    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0).unsqueeze(0), 
+                                    key_size[1]).squeeze(0).squeeze(0)
     axis_kh, axis_kw = torch.meshgrid(axis_kh, axis_kw)
     axis_qh, axis_qw = torch.meshgrid(axis_qh, axis_qw)
 
