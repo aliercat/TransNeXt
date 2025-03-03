@@ -50,14 +50,14 @@ def print_model_config(model_config_path):
         
 
 if __name__ == "__main__":
-    # model_path = 'work_dirs/segformer.b4.512x512.ade.160k-MSAttention_1/iter_160000.pth'
-    # save_path = 'pretrained/iter_mds2.pth'
+    model_path = 'work_dirs/upernet_transnext_tiny_512x512_160k_ade20k_ss/iter_160000_4316.pth'
+    save_path = 'pretrained/iter_mds_adapter.pth'
     
 
-    # load_and_modify_weights(model_path, save_path)
+    load_and_modify_weights(model_path, save_path)
     # print_model(save_path)
-    model_path = 'work_dirs/seghead_transnext_tiny_512x512_160k_ade20k_ss/iter_16000.pth'
-    print_model(model_path)
+    # model_path = 'work_dirs/seghead_transnext_tiny_512x512_160k_ade20k_ss/iter_16000.pth'
+    # print_model(model_path)
 
     # config_path = 'local_configs/segformer/B0/segformer.b0.512x512.ade.160k.py'
     # print_model_config(config_path)

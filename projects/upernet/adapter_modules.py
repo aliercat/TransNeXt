@@ -12,7 +12,7 @@ from timm.models.layers import DropPath
 _logger = logging.getLogger(__name__)
 
 block_size  = [512, 256, 128, 64]
-window      = [8  , 4  , 4  , 2 ]
+window      = [4  , 4  , 4  , 2 ]
 
 class ConvFFN(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None,

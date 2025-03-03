@@ -9,9 +9,10 @@ crop_size = (512, 512)
 # optimizer
 model = dict(
     backbone=dict(
-        pretrained='pretrained/transnext_tiny_224_1k.pth',
+        # pretrained='pretrained/transnext_tiny_224_1k.pth',
+        pretrained='pretrained/iter_mds_adapter.pth',
         type='transnext_tiny',
-        pretrain_size=224,
+        pretrain_size=512,
         img_size=512,
         is_extrapolation=False,
     ),
@@ -32,9 +33,9 @@ paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
                                 'temperature': dict(decay_mult=0.),
                                 'norm': dict(decay_mult=0.),
                                 # 新增模块配置
-                                'spm': dict(decay_mult=0.5, lr_mult=10.0),      # SpatialPriorModule
-                                'interaction_block': dict(decay_mult=0.5, lr_mult=10.0),
-                                'level_embeds': dict(decay_mult=0.0, lr_mult=2)  # 位置编码参数
+                                'spm': dict(decay_mult=0.5, lr_mult=2.0),      # SpatialPriorModule
+                                'interaction_block': dict(decay_mult=0.5, lr_mult=2.0),
+                                'level_embeds': dict(decay_mult=0.0, lr_mult=1.2)  # 位置编码参数
                                 })
 
 # paramwise_cfg['custom_keys']['spm'] = {'lr_mult': 2.0}
