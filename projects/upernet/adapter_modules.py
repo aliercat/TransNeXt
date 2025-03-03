@@ -197,110 +197,112 @@ class InteractionBlockWithCls(nn.Module):
         return x, c, cls
     
 
-class SpatialPriorModule(nn.Module):
-    def __init__(self, in_channels=3, inplanes=64, embed_dims=[384,384,384,384], with_cp=False):
-        super().__init__()
-        self.with_cp = with_cp
-
-        self.stem = nn.Sequential(*[
-            nn.Conv2d(in_channels, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.SyncBatchNorm(inplanes),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.SyncBatchNorm(inplanes),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.SyncBatchNorm(inplanes),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        ])
-        self.conv2 = nn.Sequential(*[
-            nn.Conv2d(inplanes, 2 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.SyncBatchNorm(2 * inplanes),
-            nn.ReLU(inplace=True)
-        ])
-        self.conv3 = nn.Sequential(*[
-            nn.Conv2d(2 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.SyncBatchNorm(4 * inplanes),
-            nn.ReLU(inplace=True)
-        ])
-        self.conv4 = nn.Sequential(*[
-            nn.Conv2d(4 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.SyncBatchNorm(4 * inplanes),
-            nn.ReLU(inplace=True)
-        ])
-        self.fc1 = nn.Conv2d(inplanes, embed_dims[0], kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc2 = nn.Conv2d(2 * inplanes, embed_dims[1], kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc3 = nn.Conv2d(4 * inplanes, embed_dims[2], kernel_size=1, stride=1, padding=0, bias=True)
-        self.fc4 = nn.Conv2d(4 * inplanes, embed_dims[3], kernel_size=1, stride=1, padding=0, bias=True)
-
-    def forward(self, x):
-        
-        def _inner_forward(x):
-            # print('x.shape', x.shape)
-            c1 = self.stem(x)
-            c2 = self.conv2(c1)
-            c3 = self.conv3(c2)
-            c4 = self.conv4(c3)
-            c1 = self.fc1(c1)
-            c2 = self.fc2(c2)
-            c3 = self.fc3(c3)
-            c4 = self.fc4(c4)
-
-            # print(c1.shape)
-            # print(c2.shape)
-            # print(c3.shape)
-            # print(c4.shape)
-
-            bs, dim, _, _ = c1.shape
-            # c1 = c1.view(bs, dim, -1).transpose(1, 2)  # 4s
-            # c2 = c2.view(bs, dim, -1).transpose(1, 2)  # 8s
-            # c3 = c3.view(bs, dim, -1).transpose(1, 2)  # 16s
-            # c4 = c4.view(bs, dim, -1).transpose(1, 2)  # 32s
-            c1 = c1.flatten(2).transpose(1, 2)
-            c2 = c2.flatten(2).transpose(1, 2)
-            c3 = c3.flatten(2).transpose(1, 2)
-            c4 = c4.flatten(2).transpose(1, 2)
-    
-            return [c1, c2, c3, c4]
-        
-        if self.with_cp and x.requires_grad:
-            outs = cp.checkpoint(_inner_forward, x)
-        else:
-            outs = _inner_forward(x)
-        return outs
-
 # class SpatialPriorModule(nn.Module):
-#     def __init__(self, in_channels=3, inplanes=64, embed_dim=384, with_cp=False):
+#     def __init__(self, in_channels=3, inplanes=64, embed_dims=[384,384,384,384], with_cp=False):
 #         super().__init__()
 #         self.with_cp = with_cp
 
-#         # 单分支设计：仅保留stem + 一个下采样层
-#         self.stem = nn.Sequential(
+#         self.stem = nn.Sequential(*[
 #             nn.Conv2d(in_channels, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
 #             nn.SyncBatchNorm(inplanes),
 #             nn.ReLU(inplace=True),
 #             nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
 #             nn.SyncBatchNorm(inplanes),
 #             nn.ReLU(inplace=True),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)  # 输出尺寸为原图1/4
-#         )
-        
-#         # 调整通道数至embed_dim
-#         self.fc = nn.Conv2d(inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
+#             nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.SyncBatchNorm(inplanes),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+#         ])
+#         self.conv2 = nn.Sequential(*[
+#             nn.Conv2d(inplanes, 2 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+#             nn.SyncBatchNorm(2 * inplanes),
+#             nn.ReLU(inplace=True)
+#         ])
+#         self.conv3 = nn.Sequential(*[
+#             nn.Conv2d(2 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+#             nn.SyncBatchNorm(4 * inplanes),
+#             nn.ReLU(inplace=True)
+#         ])
+#         self.conv4 = nn.Sequential(*[
+#             nn.Conv2d(4 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+#             nn.SyncBatchNorm(4 * inplanes),
+#             nn.ReLU(inplace=True)
+#         ])
+#         self.fc1 = nn.Conv2d(inplanes, embed_dims[0], kernel_size=1, stride=1, padding=0, bias=True)
+#         self.fc2 = nn.Conv2d(2 * inplanes, embed_dims[1], kernel_size=1, stride=1, padding=0, bias=True)
+#         self.fc3 = nn.Conv2d(4 * inplanes, embed_dims[2], kernel_size=1, stride=1, padding=0, bias=True)
+#         self.fc4 = nn.Conv2d(4 * inplanes, embed_dims[3], kernel_size=1, stride=1, padding=0, bias=True)
 
 #     def forward(self, x):
+        
 #         def _inner_forward(x):
-#             # 单一路径前向
-#             c = self.stem(x)         # [B, inplanes, H/4, W/4]
-#             c = self.fc(c)           # [B, embed_dim, H/4, W/4]
-            
-#             # 展平为序列格式 [B, (H/4*W/4), embed_dim]
-#             bs, dim, h, w = c.shape
-#             c = c.view(bs, dim, -1).transpose(1, 2)
-#             return c  # 仅返回单一特征
+#             # print('x.shape', x.shape)
+#             c1 = self.stem(x)
+#             c2 = self.conv2(c1)
+#             c3 = self.conv3(c2)
+#             c4 = self.conv4(c3)
+#             c1 = self.fc1(c1)
+#             c2 = self.fc2(c2)
+#             c3 = self.fc3(c3)
+#             c4 = self.fc4(c4)
 
+#             # print(c1.shape)
+#             # print(c2.shape)
+#             # print(c3.shape)
+#             # print(c4.shape)
+
+#             bs, dim, _, _ = c1.shape
+#             # c1 = c1.view(bs, dim, -1).transpose(1, 2)  # 4s
+#             # c2 = c2.view(bs, dim, -1).transpose(1, 2)  # 8s
+#             # c3 = c3.view(bs, dim, -1).transpose(1, 2)  # 16s
+#             # c4 = c4.view(bs, dim, -1).transpose(1, 2)  # 32s
+#             c1 = c1.flatten(2).transpose(1, 2)
+#             c2 = c2.flatten(2).transpose(1, 2)
+#             c3 = c3.flatten(2).transpose(1, 2)
+#             c4 = c4.flatten(2).transpose(1, 2)
+    
+#             return [c1, c2, c3, c4]
+        
 #         if self.with_cp and x.requires_grad:
-#             return cp.checkpoint(_inner_forward, x)
+#             outs = cp.checkpoint(_inner_forward, x)
 #         else:
-#             return _inner_forward(x)
+#             outs = _inner_forward(x)
+#         return outs
+
+class SpatialPriorModule(nn.Module):
+    def __init__(self, in_channels=3, inplanes=64, embed_dim=384, with_cp=False):
+        super().__init__()
+        self.with_cp = with_cp
+
+        # 单分支设计：仅保留stem
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes),
+            nn.ReLU(inplace=True),
+            # nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # 调整通道数至embed_dim
+        self.fc = nn.Conv2d(inplanes, embed_dim, kernel_size=1, stride=1, padding=0, bias=True)
+
+    def forward(self, x, num_stage=0):
+        def _inner_forward(x):
+            # 单一路径前向
+            c = self.stem(x)         # [B, inplanes, H/2, W/2]
+            if num_stage == 0:
+                c = self.maxpool(c)  # [B, inplanes, H/4, W/4]
+            c = self.fc(c)           # [B, embed_dim, H/4, W/4] or # [B, inplanes, H/2, W/2]
+            
+            # 展平为序列格式 [B, (H/4*W/4), embed_dim]
+            bs, dim, h, w = c.shape
+            c = c.view(bs, dim, -1).transpose(1, 2)
+            return c  # 仅返回单一特征, 4阶段分别返回1/4, 1/8, 1/16, 1/32
+
+        if self.with_cp and x.requires_grad:
+            return cp.checkpoint(_inner_forward, x)
+        else:
+            return _inner_forward(x)

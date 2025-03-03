@@ -370,12 +370,12 @@ class TransNeXt(nn.Module):
         self.is_extrapolation = is_extrapolation
         self.pretrain_size = pretrain_size or img_size
 
-        self.spm = SpatialPriorModule(inplanes=in_chans, embed_dims=embed_dims)
-        # self.spm = nn.ModuleList([
-        #     SpatialPriorModule(in_channels=in_chans if i == 0 else embed_dims[i - 1], 
-        #                        inplanes=64, embed_dim=embed_dims[i])
-        #     for i in range(num_stages)
-        # ])
+        # self.spm = SpatialPriorModule(inplanes=in_chans, embed_dims=embed_dims)
+        self.spm = nn.ModuleList([
+            SpatialPriorModule(in_channels=in_chans if i == 0 else embed_dims[i - 1], 
+                               inplanes=64, embed_dim=embed_dims[i])
+            for i in range(num_stages)
+        ])
         self.interaction_block = nn.ModuleList([
             InteractionBlock(dim=embed_dims[i], num_heads=num_heads[i],
                              norm_layer=norm_layer, with_cp=False, num_stage=i)
@@ -471,13 +471,13 @@ class TransNeXt(nn.Module):
     #     c4 = c4 + level_embed[3]
     #     return c1, c2, c3, c4
     def _add_level_embed(self, i, c):
-        c[i] = c[i] + self.level_embeds[i]
-        return c[i]
+        c = c + self.level_embeds[i]
+        return c
     
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
-        c = self.spm(x) # [bs, n, dim] c = [c1, c2, c3, c4]
+        # c = self.spm(x) # [bs, n, dim] c = [c1, c2, c3, c4]
         # print(c[0].shape)
         # print(c[1].shape)
         # print(c[2].shape)
@@ -488,8 +488,8 @@ class TransNeXt(nn.Module):
             block = getattr(self, f"block{i + 1}")
             norm = getattr(self, f"norm{i + 1}")
 
-            # c = self.spm(_x) # [bs, n, dim] c = [c1, c2, c3, c4]
-            _c = self._add_level_embed(i, c)
+            c = self.spm[i](x, i) # [bs, n, dim] c = [c1, c2, c3, c4]
+            c = self._add_level_embed(i, c)
             # print(f'_c.shape:{_c.shape}')
 
             x, H, W = patch_embed(x)
@@ -520,11 +520,11 @@ class TransNeXt(nn.Module):
             
             
            
-            x, _c = self.interaction_block[i](x, _c, block, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)       
+            x, c = self.interaction_block[i](x, c, block, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)       
 
             # print(f'after interaction block, x.shape:{x.shape}, _c.shape:{_c.shape}')
             # x:[B, N, C] _c : [B, N, C]
-            x = x + _c
+            x = x + c
             x = norm(x)
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
 
