@@ -384,9 +384,9 @@ class TransNeXt(nn.Module):
         # self.up = nn.ModuleList([
         #     nn.ConvTranspose2d(embed_dims[i], embed_dims[i], 2, 2) for i in range(4)
         # ])
-        self.level_embeds = nn.ParameterList([
-            nn.Parameter(torch.zeros(embed_dims[i])) for i in range(num_stages)
-        ])
+        # self.level_embeds = nn.ParameterList([
+        #     nn.Parameter(torch.zeros(embed_dims[i])) for i in range(num_stages)
+        # ])
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
 
@@ -489,7 +489,7 @@ class TransNeXt(nn.Module):
             norm = getattr(self, f"norm{i + 1}")
 
             c = self.spm[i](x, i) # [bs, n, dim] c = [c1, c2, c3, c4]
-            c = self._add_level_embed(i, c)
+            # c = self._add_level_embed(i, c)
             # print(f'_c.shape:{_c.shape}')
 
             x, H, W = patch_embed(x)

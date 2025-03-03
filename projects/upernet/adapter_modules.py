@@ -5,14 +5,15 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 # from attentions import CrossAttention as Attention
-from attentions import VectorizedSparseAttention as Attention
+# from attentions import VectorizedSparseAttention as Attention
+from attentions import SparseCrossAttention as Attention
 
 from timm.models.layers import DropPath
 
 _logger = logging.getLogger(__name__)
 
-block_size  = [512, 256, 128, 64]
-window      = [8  , 4  , 4  , 2 ]
+# block_size  = [512, 256, 128, 64]
+# window      = [8  , 4  , 4  , 2 ]
 
 class ConvFFN(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None,
@@ -67,7 +68,8 @@ class Extractor(nn.Module):
         self.feat_norm = norm_layer(dim)
         # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
-        self.attn = Attention(dim, block_size[num_stage], window[num_stage])
+        # self.attn = Attention(dim, block_size[num_stage], window[num_stage])
+        self.attn = Attention(embed_dim=dim, num_heads=num_heads, stage=num_stage)
         self.with_cffn = with_cffn
         self.with_cp = with_cp
         if with_cffn:
@@ -102,7 +104,8 @@ class Injector(nn.Module):
         self.feat_norm = norm_layer(dim)
         # self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, num_heads=num_heads,
         #                          n_points=n_points, ratio=deform_ratio)
-        self.attn = Attention(dim, block_size[num_stage], window[num_stage])
+        # self.attn = Attention(dim, block_size[num_stage], window[num_stage])
+        self.attn = Attention(embed_dim=dim, num_heads=num_heads, stage=num_stage)
         self.gamma = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
 
     def forward(self, query, feat):
