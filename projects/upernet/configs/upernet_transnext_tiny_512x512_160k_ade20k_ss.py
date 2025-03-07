@@ -9,7 +9,7 @@ crop_size = (512, 512)
 # optimizer
 model = dict(
     backbone=dict(
-        pretrained=None,
+        pretrained="pretrained/transnext_tiny_224_1k.pth",
         type='transnext_tiny',
         pretrain_size=224,
         img_size=512,
