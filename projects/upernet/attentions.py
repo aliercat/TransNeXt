@@ -376,7 +376,7 @@ class SparseCrossAttention(nn.Module):
         elif stage == 3:  # N=256, 16x16 -> 使用窗口4x4
             self.window_size = 4
         else:
-            raise ValueError("Unsupported stage. Stage must be one of 1,2,3,4.")
+            raise ValueError("Unsupported stage. Stage must be one of 0,1,2,3.")
     
     def forward(self, q, kv):
         """

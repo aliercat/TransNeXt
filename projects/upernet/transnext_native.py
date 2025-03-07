@@ -384,9 +384,9 @@ class TransNeXt(nn.Module):
         # self.up = nn.ModuleList([
         #     nn.ConvTranspose2d(embed_dims[i], embed_dims[i], 2, 2) for i in range(4)
         # ])
-        # self.level_embeds = nn.ParameterList([
-        #     nn.Parameter(torch.zeros(embed_dims[i])) for i in range(num_stages)
-        # ])
+        self.level_embeds = nn.ParameterList([
+            nn.Parameter(torch.zeros(embed_dims[i])) for i in range(num_stages)
+        ])
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
         cur = 0
 
@@ -477,6 +477,7 @@ class TransNeXt(nn.Module):
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
+        c = None
         # c = self.spm(x) # [bs, n, dim] c = [c1, c2, c3, c4]
         # print(c[0].shape)
         # print(c[1].shape)
@@ -488,8 +489,8 @@ class TransNeXt(nn.Module):
             block = getattr(self, f"block{i + 1}")
             norm = getattr(self, f"norm{i + 1}")
 
-            c = self.spm[i](x, i) # [bs, n, dim] c = [c1, c2, c3, c4]
-            # c = self._add_level_embed(i, c)
+            c = self.spm[i](c, i) # [bs, n, dim] c = [c1, c2, c3, c4]
+            c = self._add_level_embed(i, c)
             # print(f'_c.shape:{_c.shape}')
 
             x, H, W = patch_embed(x)
@@ -524,7 +525,9 @@ class TransNeXt(nn.Module):
 
             # print(f'after interaction block, x.shape:{x.shape}, _c.shape:{_c.shape}')
             # x:[B, N, C] _c : [B, N, C]
-            x = x + c
+            # x = x + c
+            c = norm(c)
+            c = c.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
             x = norm(x)
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
 
