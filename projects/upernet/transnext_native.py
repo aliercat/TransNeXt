@@ -477,7 +477,7 @@ class TransNeXt(nn.Module):
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
-        c = None
+        c = x
         # c = self.spm(x) # [bs, n, dim] c = [c1, c2, c3, c4]
         # print(c[0].shape)
         # print(c[1].shape)
@@ -523,9 +523,9 @@ class TransNeXt(nn.Module):
            
             x, c = self.interaction_block[i](x, c, block, H, W, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask)       
 
-            # print(f'after interaction block, x.shape:{x.shape}, _c.shape:{_c.shape}')
+            # print(f'after interaction block, x.shape:{x.shape}, c.shape:{c.shape}')
             # x:[B, N, C] _c : [B, N, C]
-            # x = x + c
+            x = x + c
             c = norm(c)
             c = c.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
             x = norm(x)

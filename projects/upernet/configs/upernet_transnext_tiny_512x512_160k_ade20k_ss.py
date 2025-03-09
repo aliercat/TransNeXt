@@ -32,8 +32,8 @@ paramwise_cfg=dict(custom_keys={'query_embedding': dict(decay_mult=0.),
                                 'temperature': dict(decay_mult=0.),
                                 'norm': dict(decay_mult=0.),
                                 # 新增模块配置
-                                # 'spm': dict(decay_mult=0.5, lr_mult=5.0),      # SpatialPriorModule
-                                # 'interaction_block': dict(decay_mult=0.5, lr_mult=5.0),
+                                'spm': dict(decay_mult=0.5, lr_mult=5.0),      # SpatialPriorModule
+                                'interaction_block': dict(decay_mult=0.5, lr_mult=5.0),
                                 # 'level_embeds': dict(decay_mult=0.0, lr_mult=2)  # 位置编码参数--不需要了，attn内部已实现
                                 })
 
@@ -56,4 +56,4 @@ lr_config = dict(_delete_=True, policy='poly',
                  power=1.0, min_lr=0, by_epoch=False)
 
 # By default, models are trained on 8 GPUs with 2 images per GPU
-data=dict(samples_per_gpu=2)
+data=dict(samples_per_gpu=4)
