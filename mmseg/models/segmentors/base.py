@@ -274,7 +274,8 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         # convert to BGR
         color_seg = color_seg[..., ::-1]
 
-        img = img * (1 - opacity) + color_seg * opacity
+        # img = img * (1 - opacity) + color_seg * opacity
+        img = color_seg
         img = img.astype(np.uint8)
         # if out_file specified, do not show image in window
         if out_file is not None:

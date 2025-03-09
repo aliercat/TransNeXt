@@ -5,6 +5,7 @@ from mmcv import Config
 from mmcv.cnn import get_model_complexity_info
 
 from mmseg.models import build_segmentor
+from projects.upernet.transnext_native import transnext_tiny 
 
 
 def parse_args():
@@ -22,6 +23,9 @@ def parse_args():
 
 
 def main():
+    from mmseg.models import BACKBONES
+
+    print(BACKBONES.module_dict.keys())  # 查看已注册的 backbones
 
     args = parse_args()
 
